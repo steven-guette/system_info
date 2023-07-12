@@ -1,0 +1,83 @@
+#!/bin/bash
+
+set_temperature_coloration() {
+    temp="${1:1:2}"
+
+    if [ "$temp" -gt 70 ]; then
+        echo "\033[0;31m$1\033[0m"
+    elif [ "$temp" -lt 40 ]; then
+        echo "\033[0;32m$1\033[0m"
+    else
+        echo "\033[0;33m$1\033[0m"
+    fi
+}
+
+mapfile -t disk_list < <(lsblk -T --output NAME,FSTYPE,SIZE,FSAVAIL,MOUNTPOINT | grep -v NAME)
+
+system="$(uname -o) $(uname -v | awk '{print $4}') $(uname -r) $(uname -m)"
+cpu_model="$(grep -m1 -i 'model name' /proc/cpuinfo)"
+cpu_model="${cpu_model#*: }"
+cpu_type="$(echo "${cpu_model,,}" | awk '{print $1}')"
+
+total_memory="$(free -h | grep Mem | awk '{print $2}')"
+used_memory="$(free -h | grep Mem | awk '{print $3}')"
+
+maj_status='\033[0;32m-- Système à jour --\033[0m'
+reboot_status='\033[0;32m-- Non nécessaire --\033[0m'
+maj_num="$(apt-get -s upgrade | grep -P '\d+' | awk '{print $1}')"
+
+if [ "$maj_num" -gt 0 ]; then
+    maj_status="\033[0;31m$maj_num mises à jour disponibles.\033[0m"
+fi
+
+if [ -f /var/run/reboot-required ]; then
+    reboot_status='\033[0;31mRedémarrage du système nécessaire.\033[0m'
+fi
+
+# Nom de l'hôte courant.
+figlet -f standard "${HOSTNAME//-/ }" | lolcat
+
+# Affichage des informations système.
+echo -e "\n\033[0;36m#==========================================================#\033[0m" \
+        "\n\033[0;36m#\033[0m \033[0;35m\033[1mSystème     :\033[0m  $system" \
+        "\n\033[0;36m#\033[0m \033[0;35m\033[1mMise à jour :\033[0m  $maj_status" \
+        "\n\033[0;36m#\033[0m \033[0;35m\033[1mRedémarrage :\033[0m  $reboot_status" \
+        "\n\033[0;36m#==========================================================#\033[0m"
+
+# Affichage de l'IP externe et locale.
+echo -e "\033[0;36m#\033[0m \033[0;35m\033[1mIP Externe :\033[0m  $(curl -s https://ipinfo.io/ip)" \
+        "\n\033[0;36m#\033[0m \033[0;35m\033[1mIP Locale  :\033[0m  $(hostname -I | awk '{print $1}')" \
+        "\n\033[0;36m#==========================================================#\033[0m"
+
+# Affichage des coeurs du cpu, de leur températures respectives et des indicateurs de seuils.
+echo -e "\033[0;36m#\033[0m \033[0;35m\033[1mCPU :\033[0m  $cpu_model"
+
+if [ "$cpu_type" = 'amd' ]; then
+    temperature=$(set_temperature_coloration "$(sensors | grep -E "Tdie|Tctl" | awk '{print $2}')")
+    echo -e "\033[0;36m#\033[0m \033[0;35m\033[1mTempérature :\033[0m  $temperature"
+else
+    mapfile -t cpu_list < <(sensors | grep Core)
+
+    for cpu in "${cpu_list[@]}"; do
+        temperature="$(echo "$cpu" | awk '{print $3}')"
+        cpu="${cpu/"$temperature"/"$(set_temperature_coloration "$temperature")"}"
+        cpu="${cpu/Core *:/\\033[0;35m\\033[1m&\\033[0m}"
+        cpu="${cpu//    / }"
+        cpu="${cpu/:/ :}"
+
+        echo -e "\033[0;36m#\033[0m $cpu"
+    done
+fi
+
+# Affichage des informations de la mémoire vive.
+echo -e "\033[0;36m#==========================================================#\033[0m" \
+        "\n\033[0;36m#\033[0m \033[0;35m\033[1mMémoire totale   :\033[0m  ${total_memory/i/o}" \
+        "\n\033[0;36m#\033[0m \033[0;35m\033[1mMémoire utilisée :\033[0m  ${used_memory/i/o}" \
+        "\n\033[0;36m#==========================================================#\033[0m"
+
+# Affichage des partitions de stockage et de leur espace.
+for disk in "${disk_list[@]}"; do
+    disk_name="\033[0;35m\033[1m$(awk '{print $1}' <<< "$disk")\033[0m"
+    echo -e "\033[0;36m#\033[0m $disk_name ${disk#* }"
+done
+echo -e "\033[0;36m#==========================================================#\033[0m"
