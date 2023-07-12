@@ -58,14 +58,20 @@ if [ "$cpu_type" = 'amd' ]; then
 else
     mapfile -t cpu_list < <(sensors | grep Core)
 
+    i=1
     for cpu in "${cpu_list[@]}"; do
         temperature="$(echo "$cpu" | awk '{print $3}')"
         cpu="${cpu/"$temperature"/"$(set_temperature_coloration "$temperature")"}"
-        cpu="${cpu/Core *:/\\033[0;35m\\033[1m&\\033[0m}"
         cpu="${cpu//    / }"
-        cpu="${cpu/:/ :}"
+
+        if [ $i -lt 10 ]; then
+            cpu=${cpu/Core *:/\\033[0;35m\\033[1mCore 0$i :\\033[0m}
+        else
+            cpu=${cpu/Core *:/\\033[0;35m\\033[1mCore $i :\\033[0m}
+        fi
 
         echo -e "\033[0;36m#\033[0m $cpu"
+        i=$(("$i"+1))
     done
 fi
 
