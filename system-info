@@ -1,5 +1,27 @@
 #!/bin/bash
 
+check_dependencies() {
+    local -a dependencies=('curl' 'figlet' 'lolcat' 'lsblk' 'sensors' 'awk' 'grep')
+    local -a missing=()
+
+    for package in "${dependencies[@]}"; do
+        if ! command -v "$package" &> /dev/null; then
+            missing+=("$package")
+        fi
+    done
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo -e "\nLes paquets suivants sont manquants :\n${missing[*]}\n"
+        read -r -p "Souhaitez-vous installer les paquets manquants ? (oui/non) " add_packages
+
+        if [ "${add_packages,,}" = 'oui' ]; then
+            sudo apt-get -y install "${missing[*]}"
+        else
+            exit 1
+        fi
+    fi
+}
+
 set_temperature_coloration() {
     temp="${1:1:2}"
 
@@ -11,6 +33,8 @@ set_temperature_coloration() {
         echo "\033[0;33m$1\033[0m"
     fi
 }
+
+check_dependencies
 
 mapfile -t disk_list < <(lsblk -T --output NAME,FSTYPE,SIZE,FSAVAIL,MOUNTPOINT | grep -v NAME)
 
