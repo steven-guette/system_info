@@ -39,13 +39,9 @@ Si vous avez respecté chaque étape de la configuration, **system-info** devrai
 Lors de la première exécution, les potentiels paquets manquants pour le bon fonctionnement du script vous seront communiqués.
 
 **Si des paquets sont manquants, ll vous sera proposé de les installer :**
-- Si vous saisissez 'oui', vous devrez renseigner votre mot de passe puis les paquets s'installerons et le script sera ensuite exécuté.
+- Si vous saisissez 'oui', vous devrez renseigner votre mot de passe puis les paquets s'installerons et le reste du script sera ensuite exécuté.
 - Si vous saisissez 'non', les paquets ne seront pas installé et le script s'arrêtera à cause des dépendances manquantes.
 
 **A savoir :** Ce projet a été réalisé pour un système Debian/Unbuntu, sur d'autres systèmes, vous devrez probablement effectuer une installation manuelle des paquets communiqués.
 
 Une fois tout cela terminé, il s'exécutera désormais à chaque ouverture d'un nouveau terminal, ou si vous établissez une connexion entrante SSH vers le(s) poste(s) sur lequel il est configuré. 
-
-
-
-
