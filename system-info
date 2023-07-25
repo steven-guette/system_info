@@ -1,31 +1,5 @@
 #!/bin/bash
 
-check_dependencies() {
-    local -a dependencies=('curl' 'figlet' 'lolcat' 'lsblk' 'awk' 'grep')
-    local -a missing=()
-
-    if ! systemd-detect-virt --quiet; then
-        dependencies+=('lm-sensors')
-    fi
-
-    for package in "${dependencies[@]}"; do
-        if ! command -v "$package" &> /dev/null; then
-            missing+=("$package")
-        fi
-    done
-
-    if [ ${#missing[@]} -gt 0 ]; then
-        echo -e "\nLes paquets suivants sont manquants :\n${missing[*]}\n"
-        read -r -p "Souhaitez-vous installer les paquets manquants ? (oui/non) " add_packages
-
-        if [ "${add_packages,,}" = 'oui' ]; then
-            sudo apt-get -y install "${missing[@]}"
-        else
-            exit 1
-        fi
-    fi
-}
-
 set_temperature_coloration() {
     temp="${1:1:2}"
 
@@ -38,8 +12,6 @@ set_temperature_coloration() {
     fi
 }
 
-check_dependencies
-
 mapfile -t disk_list < <(lsblk -T --output NAME,FSTYPE,SIZE,FSAVAIL,MOUNTPOINT | grep -v NAME)
 
 system="$(uname -o) $(uname -v | awk '{print $4}') $(uname -r) $(uname -m)"
@@ -50,16 +22,27 @@ cpu_type="$(echo "${cpu_model,,}" | awk '{print $1}')"
 total_memory="$(free -h | grep Mem | awk '{print $2}')"
 used_memory="$(free -h | grep Mem | awk '{print $3}')"
 
-maj_status='\033[0;32m-- Système à jour --\033[0m'
-reboot_status='\033[0;32m-- Non nécessaire --\033[0m'
-maj_num="$(apt-get -s upgrade | grep -P '\d+' | awk '{print $1}')"
+maj_simulation=$(LC_ALL=C apt-get -s dist-upgrade)
 
-if [ "$maj_num" -gt 0 ]; then
-    maj_status="\033[0;31m$maj_num mises à jour disponibles.\033[0m"
+if echo "$maj_simulation" | grep -i "use autoremove"; then
+    maj_status="\033[0;31mAutoremove nécessaire.\033[0m"
+else
+    maj_upgrade=$(echo "$maj_simulation" | grep -P "[0-9]+ upgraded" | awk '{print $1}')
+    maj_new_install=$(echo "$maj_simulation" | grep -P "[0-9]+ upgraded" | awk '{print $3}')
+    maj_remove=$(echo "$maj_simulation" | grep -P "[0-9]+ upgraded" | awk '{print $6}')
+    maj_numbers=$(( maj_upgrade + maj_new_install + maj_remove ))
+
+    if [ "$maj_numbers" -gt 0 ]; then
+        maj_status="\033[0;31m$maj_numbers mises à jour disponibles.\033[0m"
+    else
+        maj_status='\033[0;32m-- Système à jour --\033[0m'
+    fi
 fi
 
 if [ -f /var/run/reboot-required ]; then
     reboot_status='\033[0;31mRedémarrage du système nécessaire.\033[0m'
+else
+    reboot_status='\033[0;32m-- Non nécessaire --\033[0m'
 fi
 
 # Nom de l'hôte courant.
@@ -80,29 +63,27 @@ echo -e "\033[0;36m#\033[0m \033[0;35m\033[1mIP Externe :\033[0m  $(curl -s http
 # Affichage des coeurs du cpu, de leur températures respectives et des indicateurs de seuils.
 echo -e "\033[0;36m#\033[0m \033[0;35m\033[1mCPU :\033[0m  $cpu_model"
 
-if command -v lm-sensors; then
-    if [ "$cpu_type" = 'amd' ]; then
-        temperature=$(set_temperature_coloration "$(sensors | grep -E "Tdie|Tctl" | awk '{print $2}')")
-        echo -e "\033[0;36m#\033[0m \033[0;35m\033[1mTempérature :\033[0m  $temperature"
-    else
-        mapfile -t cpu_list < <(sensors | grep Core)
+if [ "$cpu_type" = 'amd' ]; then
+    temperature=$(set_temperature_coloration "$(sensors | grep -E "Tdie|Tctl" | awk '{print $2}')")
+    echo -e "\033[0;36m#\033[0m \033[0;35m\033[1mTempérature :\033[0m  $temperature"
+else
+    mapfile -t cpu_list < <(sensors | grep Core)
 
-        i=1
-        for cpu in "${cpu_list[@]}"; do
-            temperature="$(echo "$cpu" | awk '{print $3}')"
-            cpu="${cpu/"$temperature"/"$(set_temperature_coloration "$temperature")"}"
-            cpu="${cpu//    / }"
+    i=1
+    for cpu in "${cpu_list[@]}"; do
+        temperature="$(echo "$cpu" | awk '{print $3}')"
+        cpu="${cpu/"$temperature"/"$(set_temperature_coloration "$temperature")"}"
+        cpu="${cpu//    / }"
 
-            if [ $i -lt 10 ]; then
-                cpu=${cpu/Core *:/\\033[0;35m\\033[1mCore 0$i :\\033[0m}
-            else
-                cpu=${cpu/Core *:/\\033[0;35m\\033[1mCore $i :\\033[0m}
-            fi
+        if [ $i -lt 10 ]; then
+            cpu=${cpu/Core *:/\\033[0;35m\\033[1mCore 0$i :\\033[0m}
+        else
+            cpu=${cpu/Core *:/\\033[0;35m\\033[1mCore $i :\\033[0m}
+        fi
 
-            echo -e "\033[0;36m#\033[0m $cpu"
-            i=$(("$i"+1))
-        done
-    fi
+        echo -e "\033[0;36m#\033[0m $cpu"
+        i=$(("$i"+1))
+    done
 fi
 
 # Affichage des informations de la mémoire vive.
