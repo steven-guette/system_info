@@ -33,14 +33,14 @@ else
     maj_numbers=$(( maj_upgrade + maj_new_install + maj_remove ))
 
     if [ "$maj_numbers" -gt 0 ]; then
-        maj_status="\033[0;31m$maj_numbers mises à jour disponibles.\033[0m"
+        maj_status="\033[0;33m$maj_numbers mises à jour disponibles.\033[0m"
     else
         maj_status='\033[0;32m-- Système à jour --\033[0m'
     fi
 fi
 
 if [ -f /var/run/reboot-required ]; then
-    reboot_status='\033[0;31mRedémarrage du système nécessaire.\033[0m'
+    reboot_status='\033[0;33mRedémarrage du système nécessaire.\033[0m'
 else
     reboot_status='\033[0;32m-- Non nécessaire --\033[0m'
 fi
